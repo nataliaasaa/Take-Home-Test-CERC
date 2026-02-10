@@ -19,6 +19,17 @@ A analise geral e desenvolvimento de workflow pode ser encontrada em diferentes 
   * *predição.ipynb* importa uma base de dados de avaliação, nunca usada por nenhum dos modelos. A predição é realizada pelo modelo de ml e novamente pelas regras financeiras, o output destaca as predições em que os modelos discordam, que devem ser melhores analisadas por especialistas. O csv de predições é salvo localmente.
   * *agente_ai.ipynb* utiliza o google Gemini para criar um agente especializado em analise de creditos, que recebe o csv de predições anteriror e interage com o usuario com base em regras pre estabelecidas e apenas informações disponiveis no dataset.
 
+### Agente IA:
+
+Para a funcionalidade do Agente de IA, é necessario [se registrar para uma API KEY](https://aistudio.google.com/app/api-keys). 
+
+Para rodar no streamlit, a API KEY deve ficar registrada em .strealit/secrets.toml:
+
+GOOGLE_API_KEY = "sua-api-key"
+
+No jupyter notebook, apenas substitua o valor no arquivo agente_ia.ipynb
+
+
 ### Streamlit:
 
 A resolução desenvolvida em jupyter notebook também está disponível na plataforma streamlite. O programa roda localmente no browser.
@@ -35,7 +46,7 @@ Clone esse repositorio:
 
 Para a criação do ambiente virtual, navegue até o diretório raiz Take-Home-Test-CERC. Em seguida:
 
-``` python -m venv cerc ```
+``` python3.11 -m venv cerc ```
 
 ``` .\cerc\Scripts\activate ```
 

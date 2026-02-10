@@ -1,3 +1,5 @@
+from os import mkdir
+import os
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -49,6 +51,11 @@ df_credit["Rating_group"] = df_credit["Rating"].map(risk_dict)
 
 le = LabelEncoder()
 df_credit["Rating_encoded"] = le.fit_transform(df_credit["Rating_group"])
+
+# create models directory if not existent
+if not os.path.exists("models"):
+    mkdir("models")
+
 with open("models/label_encoder.pkl", "wb") as f:
     pickle.dump(le, f)
 # =========================
@@ -126,41 +133,51 @@ if st.button("Treinar Random Forest"):
     # =========================
     # Classification report
     # =========================
-    st.subheader("📄 Classification Report")
+    # st.subheader("📄 Classification Report")
 
-    report = classification_report(
-        y_test,
-        y_pred,
-        target_names=le.classes_,
-        output_dict=True
-    )
+    # report = classification_report(
+    #     y_test,
+    #     y_pred,
+    #     target_names=le.classes_,
+    #     output_dict=True
+    # )
 
-    st.dataframe(pd.DataFrame(report).transpose())
+    # st.dataframe(pd.DataFrame(report).transpose())
 
     # =========================
     # Confusion Matrix
     # =========================
-    st.subheader("🔁 Matriz de Confusão")
+    # st.subheader("🔁 Matriz de Confusão")
 
-    cm = confusion_matrix(y_test, y_pred)
-    cm_df = pd.DataFrame(cm, index=le.classes_, columns=le.classes_)
 
-    fig, ax = plt.subplots(figsize=(8, 8))
-    sns.heatmap(
-        cm_df,
-        annot=True,
-        fmt="d",
-        cmap="Reds",
-        linewidths=0.5,
-        linecolor="white",
-        ax=ax
-    )
+    col1, col2 = st.columns(2)
 
-    ax.set_xlabel("Predicted")
-    ax.set_ylabel("True")
-    ax.set_title("Confusion Matrix")
+    with col1:
+        st.subheader("📈 Métricas do Modelo")
+        st.write("**Accuracy:**", accuracy_score(y_test, y_pred))
+        st.text(classification_report(y_test, y_pred,))
 
-    st.pyplot(fig)
+    with col2:
+        st.subheader("🔲 Matriz de Confusão")
+        cm = confusion_matrix(y_test, y_pred)
+        cm_df = pd.DataFrame(cm, index=le.classes_, columns=le.classes_)
+
+        fig, ax = plt.subplots(figsize=(5, 5))
+        sns.heatmap(
+            cm_df,
+            annot=True,
+            fmt="d",
+            cmap="Reds",
+            linewidths=0.5,
+            linecolor="white",
+            ax=ax
+        )
+
+        ax.set_xlabel("Predicted")
+        ax.set_ylabel("True")
+        ax.set_title("Confusion Matrix")
+
+        st.pyplot(fig)
 
     # =========================
     # Feature Importance
@@ -274,49 +291,60 @@ if st.button("Executar PyCaret (Benchmarking)"):
         # =========================
         # Metrics
         # =========================
-        st.subheader("📄 Classification Report (PyCaret)")
+        # st.subheader("📄 Classification Report (PyCaret)")
 
-        report_pc = classification_report(
-            y_test,
-            preds["prediction_label"],
-            target_names=le.classes_,
-            output_dict=True
-        )
+        # report_pc = classification_report(
+        #     y_test,
+        #     preds["prediction_label"],
+        #     target_names=le.classes_,
+        #     output_dict=True
+        # )
 
-        st.dataframe(pd.DataFrame(report_pc).transpose())
+        # st.dataframe(pd.DataFrame(report_pc).transpose())
 
         # =========================
         # Confusion Matrix
         # =========================
-        st.subheader("🔁 Matriz de Confusão (PyCaret)")
+        # st.subheader("🔁 Matriz de Confusão (PyCaret)")
 
-        cm_pc = confusion_matrix(
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.subheader("📈 Métricas do Modelo")
+            report_pc = classification_report(
+                        y_test,
+                        preds["prediction_label"])
+            st.text(report_pc)
+
+        with col2:
+            st.subheader("🔲 Matriz de Confusão")
+            cm_pc = confusion_matrix(
             y_test,
-            preds["prediction_label"]
-        )
+            preds["prediction_label"])
 
-        cm_pc_df = pd.DataFrame(
-            cm_pc,
-            index=le.classes_,
-            columns=le.classes_
-        )
+            cm_pc_df = pd.DataFrame(
+                cm_pc,
+                index=le.classes_,
+                columns=le.classes_)
 
-        fig, ax = plt.subplots(figsize=(8, 8))
-        sns.heatmap(
-            cm_pc_df,
-            annot=True,
-            fmt="d",
-            cmap="Reds",
-            linewidths=0.5,
-            linecolor="white",
-            ax=ax
-        )
+            fig, ax = plt.subplots(figsize=(5, 5))
+            sns.heatmap(
+                cm_pc_df,
+                annot=True,
+                fmt="d",
+                cmap="Reds",
+                linewidths=0.5,
+                linecolor="white",
+                ax=ax
+            )
 
-        ax.set_xlabel("Predicted")
-        ax.set_ylabel("True")
-        ax.set_title("Confusion Matrix – PyCaret")
+            ax.set_xlabel("Predicted")
+            ax.set_ylabel("True")
+            ax.set_title("Confusion Matrix – PyCaret")
 
-        st.pyplot(fig)
+            st.pyplot(fig)
+
+        
 
         st.info(
             "Os resultados do PyCaret corroboram que modelos baseados em árvores "
