@@ -181,6 +181,9 @@ df["ml_risk_bucket"] = df["ml_predict_label"].map(ml_to_bucket)
 
 df["risk_disagreement"] = df["ml_risk_bucket"] != df["risk_bucket"]
 
+# Armazenar resultados na sessão para uso posterior
+st.session_state["final_results_df"] = df
+
 final_cols = [
     "Name",
     "ml_predict_label",
