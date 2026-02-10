@@ -7,14 +7,14 @@ from utils.context_builder import build_risk_context  # Mantém sua função exi
 st.title("🤖 Risk Analyst AI (Google Gemini)")
 
 
-# =============== DEBUG OPCIONAL (remova em produção) ===============
-if st.checkbox("🔍 Mostrar debug de secrets", key="debug"):
-    st.write("st.secrets existe?", hasattr(st, 'secrets'))
-    if hasattr(st, 'secrets'):
-        st.write("Chaves em st.secrets:", list(st.secrets.keys()))
-        st.write("google em st.secrets?", "google" in st.secrets)
-        if "google" in st.secrets:
-            st.write("API_KEY presente?", "GOOGLE_API_KEY" in st.secrets["google"])
+# # =============== DEBUG OPCIONAL (remova em produção) ===============
+# if st.checkbox("🔍 Mostrar debug de secrets", key="debug"):
+#     st.write("st.secrets existe?", hasattr(st, 'secrets'))
+#     if hasattr(st, 'secrets'):
+#         st.write("Chaves em st.secrets:", list(st.secrets.keys()))
+#         st.write("google em st.secrets?", "google" in st.secrets)
+#         if "google" in st.secrets:
+#             st.write("API_KEY presente?", "GOOGLE_API_KEY" in st.secrets["google"])
 
 # =============== VALIDAÇÃO DE DADOS ===============
 df = st.session_state.get("final_results_df")
@@ -74,11 +74,12 @@ REGRAS ESTRITAS:
 1. USE EXCLUSIVAMENTE os dados do contexto abaixo. NUNCA invente números, nomes ou métricas.
 2. Se informação não existir no contexto: "⚠️ Dado não disponível na análise realizada."
 3. Responda com clareza para comitê de crédito: destaque risco alto/médio/baixo, principais drivers e recomendações objetivas.
-4. Formate respostas com:
+4. Use prioritariamente a seção "EMPRESA SELECIONADA – ANÁLISE DETALHADA" quando o usuário perguntar sobre uma empresa específica.
+5. Formate respostas com:
    - 📌 Resumo executivo (1 linha)
    - 🔍 Análise detalhada (tópicos)
    - 💡 Recomendação prática
-5. Mantenha linguagem técnica mas acessível (evite jargões excessivos).
+6. Mantenha linguagem técnica mas acessível (evite jargões excessivos).
 
 CONTEXTO DOS DADOS (ATUALIZADO PARA: {company if company != 'Todas' else 'TODAS AS EMPRESAS'}):
 {context}"""

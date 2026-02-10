@@ -3,133 +3,172 @@
 import pandas as pd
 from typing import Optional
 
-def build_risk_context(df: pd.DataFrame, company_name: Optional[str] = None) -> str:
+from typing import Optional
+import pandas as pd
+
+
+def build_risk_context(
+    df: pd.DataFrame,
+    company_name: Optional[str] = None,
+    top_n: int = 5
+) -> str:
     """
-    Constrói um contexto textual rico para análise de risco de crédito.
-    
+    Constrói um contexto textual estruturado para análise de risco de crédito,
+    adequado para uso com LLMs (Gemini, GPT, etc).
+
     Args:
-        df: DataFrame com resultados da predição (obrigatório: colunas específicas)
-        company_name: Nome da empresa para análise individual (None = portfólio completo)
-    
+        df: DataFrame com resultados finais de risco
+        company_name: Empresa selecionada para análise detalhada (None ou "Todas" = portfólio)
+        top_n: Número de empresas de maior risco a listar
+
     Returns:
-        str: Contexto formatado para o modelo de IA
+        Contexto textual formatado
     """
-    # Validação crítica
-    required_cols = ["Name", "Rating", "final_risk_score", "risk_probability", "risk_bucket"]
-    missing = [col for col in required_cols if col not in df.columns]
+
+    # -----------------------------
+    # 1. Validações
+    # -----------------------------
+    required_cols = [
+        "Name",
+        "Rating",
+        "final_risk_score",
+        "risk_probability",
+        "risk_bucket"
+    ]
+
+    missing = [c for c in required_cols if c not in df.columns]
     if missing:
         raise ValueError(f"Colunas obrigatórias ausentes: {missing}")
-    
+
     if df.empty:
         return "⚠️ Nenhum dado de risco disponível para análise."
-    
-    # Filtro por empresa (se aplicável)
+
+    df = df.copy()
+
+    # Garantir tipos
+    df["final_risk_score"] = pd.to_numeric(df["final_risk_score"], errors="coerce")
+    df["risk_probability"] = pd.to_numeric(df["risk_probability"], errors="coerce")
+
+    df = df.dropna(subset=["final_risk_score", "risk_probability", "risk_bucket"])
+
+    if df.empty:
+        return "⚠️ Dados insuficientes após limpeza."
+
+    total = len(df)
+
+    # -----------------------------
+    # 2. Estatísticas do portfólio
+    # -----------------------------
+    risk_dist = (
+        df["risk_bucket"]
+        .value_counts()
+        .reindex(["Low", "Medium", "High"], fill_value=0)
+    )
+
+    avg_score = df["final_risk_score"].mean()
+    avg_prob = df["risk_probability"].mean() * 100
+
+    disagreements = None
+    if "ml_risk_bucket" in df.columns:
+        disagreements = (df["ml_risk_bucket"] != df["risk_bucket"]).sum()
+
+    # -----------------------------
+    # 3. Empresa selecionada
+    # -----------------------------
+    selected_company = None
     if company_name and company_name != "Todas":
-        filtered_df = df[df["Name"] == company_name].copy()
-        if filtered_df.empty:
-            return f"⚠️ Empresa '{company_name}' não encontrada nos resultados."
-        scope = f"Empresa individual: {company_name}"
-    else:
-        filtered_df = df.copy()
-        scope = "Portfólio completo"
-    
-    # Garantir tipos numéricos
-    filtered_df["final_risk_score"] = pd.to_numeric(filtered_df["final_risk_score"], errors="coerce")
-    filtered_df["risk_probability"] = pd.to_numeric(filtered_df["risk_probability"], errors="coerce")
-    
-    # Remover NaNs críticos
-    filtered_df = filtered_df.dropna(subset=["final_risk_score", "risk_probability", "risk_bucket"])
-    
-    if filtered_df.empty:
-        return "⚠️ Dados insuficientes após filtragem (scores ou probabilidades ausentes)."
-    
-    # ========== ESTATÍSTICAS AGREGADAS ==========
-    total = len(filtered_df)
-    
-    # Distribuição de risco (trata coluna como string/category)
-    risk_dist = filtered_df["risk_bucket"].value_counts().to_dict()
-    risk_dist_pct = {
-        k: f"{v} ({v/total*100:.1f}%)"
-        for k, v in sorted(risk_dist.items(), key=lambda x: ["Baixo", "Médio", "Alto"].index(x[0]) if x[0] in ["Baixo", "Médio", "Alto"] else 999)
-    }
-    
-    # Divergências ML vs Regras (se coluna existir)
-    disagreements = 0
-    if "ml_risk_bucket" in filtered_df.columns:
-        disagreements = (filtered_df["ml_risk_bucket"] != filtered_df["risk_bucket"]).sum()
-        disagreement_pct = f"{disagreements} ({disagreements/total*100:.1f}%)"
-    else:
-        disagreement_pct = "Não aplicável (coluna ml_risk_bucket ausente)"
-    
-    # Métricas numéricas
-    avg_score = filtered_df["final_risk_score"].mean()
-    avg_prob = filtered_df["risk_probability"].mean() * 100  # Converter para %
-    max_risk = filtered_df.loc[filtered_df["final_risk_score"].idxmax()] if not filtered_df.empty else None
-    
-    # ========== FORMATAÇÃO DA STRING DE CONTEXTO ==========
-    context_lines = []
-    
-    context_lines.append("📊 ANÁLISE DE RISCO DE CRÉDITO")
-    context_lines.append("=" * 70)
-    context_lines.append(f"📌 Escopo: {scope}")
-    context_lines.append(f"📅 Total de empresas analisadas: {total}")
-    context_lines.append("")
-    
-    # Distribuição de risco
-    context_lines.append("📈 Distribuição de Risco:")
-    for bucket, count_pct in risk_dist_pct.items():
-        context_lines.append(f"   • {bucket}: {count_pct}")
-    context_lines.append("")
-    
-    # Divergências
-    context_lines.append(f"⚠️  Divergências ML vs Regras: {disagreement_pct}")
-    context_lines.append("")
-    
-    # Métricas agregadas
-    context_lines.append("📉 Métricas Agregadas:")
-    context_lines.append(f"   • Score médio de risco: {avg_score:.2f}/100")
-    context_lines.append(f"   • Probabilidade média de default: {avg_prob:.2f}%")
-    if max_risk is not None:
-        context_lines.append(f"   • Maior risco identificado: {max_risk['Name']} (Score: {max_risk['final_risk_score']:.2f})")
-    context_lines.append("")
-    
-    # ========== EMPRESAS DETALHADAS (Top 5 ou única) ==========
-    if company_name and company_name != "Todas":
-        # Modo empresa única
-        company = filtered_df.iloc[0]
-        context_lines.append(f"🏢 DADOS DA EMPRESA: {company['Name']}")
-        context_lines.append("-" * 70)
-        context_lines.append(f"   • Rating: {company.get('Rating', 'N/A')}")
-        context_lines.append(f"   • Score de Risco Final: {company['final_risk_score']:.2f}/100")
-        context_lines.append(f"   • Probabilidade de Default (12m): {company['risk_probability']*100:.2f}%")
-        context_lines.append(f"   • Classificação de Risco: {company['risk_bucket']}")
-        if "ml_risk_bucket" in company:
-            context_lines.append(f"   • Bucket ML: {company['ml_risk_bucket']}")
-            context_lines.append(f"   • Bucket Regras: {company['risk_bucket']}")
-            if company['ml_risk_bucket'] != company['risk_bucket']:
-                context_lines.append("   ⚠️  ALERTA: Divergência entre modelos!")
-    else:
-        # Modo portfólio (Top 5)
-        context_lines.append("🏢 TOP 5 EMPRESAS POR RISCO (Score Descendente):")
-        context_lines.append("-" * 70)
-        
-        top5 = filtered_df.nlargest(5, "final_risk_score")
-        for idx, (_, row) in enumerate(top5.iterrows(), 1):
-            context_lines.append(f"{idx}. {row['Name']}")
-            context_lines.append(f"   • Rating: {row.get('Rating', 'N/A')}")
-            context_lines.append(f"   • Score: {row['final_risk_score']:.2f}/100")
-            context_lines.append(f"   • Prob. Default: {row['risk_probability']*100:.2f}%")
-            context_lines.append(f"   • Classificação: {row['risk_bucket']}")
-            if "ml_risk_bucket" in row and row["ml_risk_bucket"] != row["risk_bucket"]:
-                context_lines.append(f"   ⚠️  Divergência: ML={row['ml_risk_bucket']} vs Regras={row['risk_bucket']}")
-            context_lines.append("")
-    
-    # ========== NOTAS IMPORTANTES ==========
-    context_lines.append("=" * 70)
-    context_lines.append("ℹ️  NOTAS PARA ANÁLISE:")
-    context_lines.append("   • Score de risco: 0-100 (quanto maior, maior o risco de default)")
-    context_lines.append("   • Probabilidade: estimativa de inadimplência em 12 meses")
-    context_lines.append("   • Classificações: Baixo (<30), Médio (30-70), Alto (>70) - ajuste conforme sua modelagem")
-    context_lines.append("   • Divergências indicam casos que requerem análise manual por comitê de crédito")
-    
-    return "\n".join(context_lines)
+        selected_company = df[df["Name"] == company_name]
+        if selected_company.empty:
+            selected_company = None
+        else:
+            selected_company = selected_company.iloc[0]
+
+    # -----------------------------
+    # 4. Top-N empresas por risco
+    # -----------------------------
+    top_companies = (
+        df.sort_values("final_risk_score", ascending=False)
+          .head(top_n)
+    )
+
+    # -----------------------------
+    # 5. Construção do contexto
+    # -----------------------------
+    lines = []
+
+    # Header
+    lines.append("📊 ANÁLISE DE RISCO DE CRÉDITO CORPORATIVO")
+    lines.append("=" * 80)
+    lines.append(f"📅 Total de empresas analisadas: {total}")
+    lines.append("")
+
+    # Portfólio
+    lines.append("📈 VISÃO GERAL DO PORTFÓLIO")
+    lines.append("-" * 80)
+    lines.append("Distribuição de risco:")
+    for bucket, count in risk_dist.items():
+        pct = count / total * 100
+        lines.append(f" • {bucket}: {count} empresas ({pct:.1f}%)")
+
+    lines.append("")
+    lines.append(f"Score médio de risco: {avg_score:.2f}/100")
+    lines.append(f"Probabilidade média de default (12m): {avg_prob:.2f}%")
+
+    if disagreements is not None:
+        lines.append(
+            f"Divergências ML vs Regras: {disagreements} "
+            f"({disagreements / total * 100:.1f}%)"
+        )
+
+    # Empresa selecionada
+    if selected_company is not None:
+        lines.append("")
+        lines.append("🏢 EMPRESA SELECIONADA – ANÁLISE DETALHADA")
+        lines.append("-" * 80)
+        lines.append(f"Empresa: {selected_company['Name']}")
+        lines.append(f"Rating: {selected_company.get('Rating', 'N/A')}")
+        lines.append(
+            f"Score de risco final: "
+            f"{selected_company['final_risk_score']:.2f}/100"
+        )
+        lines.append(
+            f"Probabilidade de default (12m): "
+            f"{selected_company['risk_probability'] * 100:.2f}%"
+        )
+        lines.append(f"Classificação de risco: {selected_company['risk_bucket']}")
+
+        if "ml_risk_bucket" in selected_company:
+            lines.append(f"Classificação ML: {selected_company['ml_risk_bucket']}")
+            lines.append(f"Classificação Regras: {selected_company['risk_bucket']}")
+
+            if selected_company["ml_risk_bucket"] != selected_company["risk_bucket"]:
+                lines.append("⚠️ Divergência entre ML e Regras – requer análise manual")
+
+    # Top-N
+    lines.append("")
+    lines.append(f"🏢 TOP {top_n} EMPRESAS COM MAIOR RISCO")
+    lines.append("-" * 80)
+
+    for i, (_, row) in enumerate(top_companies.iterrows(), 1):
+        lines.append(f"{i}. {row['Name']}")
+        lines.append(f"   Rating: {row.get('Rating', 'N/A')}")
+        lines.append(f"   Score: {row['final_risk_score']:.2f}/100")
+        lines.append(f"   Prob. Default: {row['risk_probability'] * 100:.2f}%")
+        lines.append(f"   Classificação: {row['risk_bucket']}")
+
+        if "ml_risk_bucket" in row and row["ml_risk_bucket"] != row["risk_bucket"]:
+            lines.append(
+                f"   ⚠️ Divergência: "
+                f"ML={row['ml_risk_bucket']} vs Regras={row['risk_bucket']}"
+            )
+
+    # Notas finais
+    lines.append("")
+    lines.append("=" * 80)
+    lines.append("ℹ️ NOTAS METODOLÓGICAS")
+    lines.append(" • Score de risco: escala 0–100 (quanto maior, maior o risco)")
+    lines.append(" • Probabilidade: estimativa de default em 12 meses")
+    lines.append(" • Classificação: Low (<33), Medium (33–66), High (>66)")
+    lines.append(" • Divergências indicam necessidade de análise por comitê")
+
+    return "\n".join(lines)
