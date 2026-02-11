@@ -97,7 +97,7 @@ st.markdown(r"""
 ### 🔹 4. Score de Fluxo de Caixa
 Capacidade de geração de caixa operacional
 
-$CashFlow = 0.5 \times \frac{OCF}{Share} + 0.5 \times \frac{FCF}{Share}$
+$CashFlow = 0.5 \times operating Cash Flow Per Share + 0.5 \times free Cash Flow Per Share$
 """)
 
 df_credit["cashflow_score"] = (
@@ -116,8 +116,8 @@ score_cols = [
     "cashflow_score"
 ]
 
-scaler = StandardScaler()
-df_credit[score_cols] = scaler.fit_transform(df_credit[score_cols])
+# scaler = StandardScaler()
+# df_credit[score_cols] = scaler.fit_transform(df_credit[score_cols])
 
 st.subheader("📊 Score Financeiro Final")
 
@@ -209,23 +209,6 @@ if st.button("Treinar XGBClassifier"):
         # Avaliação
         # ==========================
         y_pred = model.predict(X_test)
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-            st.subheader("📈 Métricas do Modelo")
-            st.write("**Accuracy:**", accuracy_score(y_test, y_pred))
-            st.text(classification_report(y_test, y_pred))
-
-        with col2:
-            st.subheader("Matriz de Confusão")
-            cm = confusion_matrix(y_test, y_pred)
-            fig, ax = plt.subplots(figsize=(5,5))
-            sns.heatmap(cm, annot=True, fmt="d", cmap="Reds", ax=ax)
-            ax.set_xlabel("Predito")
-            ax.set_ylabel("Real")
-            st.pyplot(fig)
-
       
         st.markdown(r"""
                 ### 1️⃣ Probabilidade de Risco (Machine Learning)
@@ -243,10 +226,27 @@ if st.button("Treinar XGBClassifier"):
                 - Valores próximos de 1 → alta chance de risco elevado  
                 - Valores próximos de 0 → empresa financeiramente saudável
                 """)
+        
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.subheader("📈 Métricas do Modelo")
+            st.write("**Accuracy:**", accuracy_score(y_test, y_pred))
+            st.text(classification_report(y_test, y_pred))
+
+        with col2:
+            st.subheader("Matriz de Confusão")
+            cm = confusion_matrix(y_test, y_pred)
+            fig, ax = plt.subplots(figsize=(5,5))
+            sns.heatmap(cm, annot=True, fmt="d", cmap="Reds", ax=ax)
+            ax.set_xlabel("Predito")
+            ax.set_ylabel("Real")
+            st.pyplot(fig)
 
         df_credit["ml_risk_probability"] = model.predict_proba(X)[:, 1]
         
-        
+        df_credit["final_risk_score"] = (df_credit["ml_risk_probability"])
+
         st.markdown(r"""
         ### 3️⃣ Score Final de Risco
 
@@ -276,9 +276,8 @@ if st.button("Treinar XGBClassifier"):
                         "Rating": df_credit["Rating"],
                         "Financial Health Score": df_credit["financial_health_score"],
                         "Rule Flags": df_credit["rule_flags"],
-                        "Final Risk Score": df_credit["final_risk_score"],
-                        "Risk Bucket": df_credit["risk_bucket"],
-                        "ML Risk Probability": df_credit["risk_probability"]
+                        "ML Risk Probability": df_credit["ml_risk_probability"],
+                        "Risk Bucket": df_credit["risk_bucket"]
                     })
 
         st.dataframe(df_result)

@@ -193,7 +193,6 @@ final_cols = [
     "ml_predict_label",
     "risk_probability",
     "rule_flags",
-    "final_risk_score",
     "risk_bucket",
     "risk_disagreement"
 ]

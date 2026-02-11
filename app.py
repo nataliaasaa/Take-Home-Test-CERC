@@ -16,6 +16,7 @@ Bem-vindo ao sistema de avaliação de risco de crédito corporativo.
 - **Treinamento**: comparação e seleção de modelos de ML
 - **Treinamento com Regras Financeiras**: criacao de regras financeiras + ML            
 - **Predição**: avaliação de risco usando ML + regras financeiras
+- **Agente de IA**: chatbot para dúvidas e relatórios sobre risco de crédito
 """)
 
 st.info("Use o menu à esquerda para navegar entre as páginas.")

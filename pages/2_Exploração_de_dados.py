@@ -129,9 +129,17 @@ st.plotly_chart(fig_feat_rating, use_container_width=True)
 # =========================
 st.header("📈 Análise Temporal por Empresa")
 
+df_credit["Date"] = pd.to_datetime(df_credit["Date"])
+company_df = df_credit.sort_values("Date")
+
 company = st.selectbox(
     "Selecione a empresa:",
     df_credit["Name"].value_counts().index.tolist()
+)
+
+feature_interest = st.selectbox(
+    "Selecione a feature de interesse:",
+    df_credit.select_dtypes(include=["float64", "int64"]).columns.tolist()
 )
 
 df_company = df_credit[df_credit["Name"] == company]
@@ -140,7 +148,7 @@ fig_time = make_subplots(
     rows=2, cols=1,
     subplot_titles=[
         "Credit Rating",
-        "Gross Profit Margin"
+        feature_interest
     ]
 )
 
@@ -157,9 +165,9 @@ fig_time.add_trace(
 fig_time.add_trace(
     go.Scatter(
         x=df_company["Date"],
-        y=df_company["grossProfitMargin"],
+        y=df_company[feature_interest],
         mode="markers",
-        name="Gross Profit Margin"
+        name=feature_interest
     ),
     row=2, col=1
 )
