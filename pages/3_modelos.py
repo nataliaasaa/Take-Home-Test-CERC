@@ -119,7 +119,7 @@ pipe = Pipeline(steps=[
 # =========================
 # Training
 # =========================
-st.header("🚀 Treinamento do Modelo")
+st.header("Treinamento do Modelo")
 
 if st.button("Treinar Random Forest"):
     with st.spinner("Treinando modelo..."):
@@ -158,7 +158,7 @@ if st.button("Treinar Random Forest"):
         st.text(classification_report(y_test, y_pred,))
 
     with col2:
-        st.subheader("🔲 Matriz de Confusão")
+        st.subheader("Matriz de Confusão")
         cm = confusion_matrix(y_test, y_pred)
         cm_df = pd.DataFrame(cm, index=le.classes_, columns=le.classes_)
 
@@ -317,7 +317,7 @@ if st.button("Executar PyCaret (Benchmarking)"):
             st.text(report_pc)
 
         with col2:
-            st.subheader("🔲 Matriz de Confusão")
+            st.subheader("Matriz de Confusão")
             cm_pc = confusion_matrix(
             y_test,
             preds["prediction_label"])

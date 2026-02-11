@@ -3,10 +3,7 @@ import pandas as pd
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-import pickle
 from utils.utils import loadCSV, pickle_model
-import datetime
-import io
 
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
@@ -23,15 +20,14 @@ st.markdown("---")
 # ==========================
 with st.expander("📘 Metodologia de Avaliação de Risco", expanded=True):
     st.markdown("""
-    Esta abordagem combina **análise financeira clássica** com **Machine Learning**.
+    Esta abordagem combina análise financeira clássica com Machine Learning.
 
     **Etapas principais:**
-    1. Construção de scores financeiros
+    1. Construção de scores financeiros e Regras financeiras adicionais
     2. Normalização dos indicadores
     3. Classificação binária de risco
     4. Modelo XGBoost
-    5. Regras financeiras adicionais
-    6. Score final híbrido
+    5. Score final
     """)
 
 # ==========================
@@ -60,20 +56,20 @@ st.subheader("📐 Construção dos Scores Financeiros")
 
 st.markdown(r"""
 ### 🔹 1. Score de Liquidez
-**Mede a capacidade da empresa de honrar obrigações de curto prazo**
+Mede a capacidade da empresa de honrar obrigações de curto prazo
 
-$Liquidity = 0.4 \times CurrentRatio + 0.3 \times QuickRatio + 0.3 \times CashRatio$
+$Liquidity = 0.33 \times CurrentRatio + 0.33 \times QuickRatio + 0.33 \times CashRatio$
 """)
 
 df_credit["liquidity_score"] = (
-    0.4 * df_credit["currentRatio"] +
-    0.3 * df_credit["quickRatio"] +
-    0.3 * df_credit["cashRatio"]
+    0.33 * df_credit["currentRatio"] +
+    0.33 * df_credit["quickRatio"] +
+    0.33 * df_credit["cashRatio"]
 )
 
 st.markdown(r"""
 ### 🔹 2. Score de Rentabilidade
-**Avalia eficiência operacional e geração de lucro**
+Avalia eficiência operacional e geração de lucro
 
 $Profitability = 0.25 \times GrossMargin + 0.25 \times OperatingMargin + 0.25 \times NetMargin + 0.25 \times ROA$
 """)
@@ -87,19 +83,19 @@ df_credit["profitability_score"] = (
 
 st.markdown(r"""
 ### 🔹 3. Score de Endividamento
-**Risco financeiro associado à alavancagem**
+Risco financeiro associado à alavancagem
 
-$Leverage = 0.6 \times DebtRatio + 0.4 \times DebtEquityRati$
+$Leverage = 0.5 \times DebtRatio + 0.5 \times DebtEquityRati$
 """)
 
 df_credit["leverage_score"] = (
-    0.6 * df_credit["debtRatio"] +
-    0.4 * df_credit["debtEquityRatio"]
+    0.5 * df_credit["debtRatio"] +
+    0.5 * df_credit["debtEquityRatio"]
 )
 
 st.markdown(r"""
 ### 🔹 4. Score de Fluxo de Caixa
-**Capacidade de geração de caixa operacional**
+Capacidade de geração de caixa operacional
 
 $CashFlow = 0.5 \times \frac{OCF}{Share} + 0.5 \times \frac{FCF}{Share}$
 """)
@@ -126,25 +122,62 @@ df_credit[score_cols] = scaler.fit_transform(df_credit[score_cols])
 st.subheader("📊 Score Financeiro Final")
 
 st.markdown(r"""
-O **Financial Health Score** combina todos os blocos financeiros:
+O Financial Health Score combina todos os blocos financeiros:
 
-$FinalScore = 0.3 \times Liquidity + 0.3 \times Profitability - 0.2 \times Leverage + 0.2 \times CashFlow$
+$FinalScore = 0.25 \times Liquidity + 0.25 \times Profitability - 0.25 \times Leverage + 0.25 \times CashFlow$
             
 """)
 
 df_credit["financial_health_score"] = (
-    0.3 * df_credit["liquidity_score"] +
-    0.3 * df_credit["profitability_score"] -
-    0.2 * df_credit["leverage_score"] +
-    0.2 * df_credit["cashflow_score"]
+    0.25 * df_credit["liquidity_score"] +
+    0.25 * df_credit["profitability_score"] -
+    0.25 * df_credit["leverage_score"] +
+    0.25 * df_credit["cashflow_score"]
 )
+
+st.markdown("""
+        ### 2️⃣ Regras Financeiras (Rule-Based Flags)
+
+        Aplicamos regras financeiras para identificar sinais de alerta.
+
+        Cada regra violada adiciona 1 flag de risco, e o valor é adicionado como feature no dataset:
+        """)
+
+st.markdown("""
+        | Regra Financeira | Justificativa |
+        |-----------------|---------------|
+        | `liquidity score < 1` | Razão de Liquidez deve ser maior que 1  |
+        | `profitability score < 0.2` | Buscamos uma margem de lucro maior que 20% |
+        | `leverage score > 2` | Razão de endividamento elevada |
+        | `cashflow score < 0.2` | Incapacidade de gerar caixa operacional |
+        """)
+
+def rule_based_risk(row):
+    flags = 0
+
+    if row["liquidity_score"] < 1:
+    # Ideally the liquidity ratios will be greater than 1
+        flags += 1
+    if row["profitability_score"] < 0.2:
+    # We want a profitability ratio greater than 20%
+        flags += 1
+    if row["leverage_score"] > 2:
+    # Don't want a leverage ratio greater than 2
+        flags += 1
+    if row["cashflow_score"] < 0.2:
+    # minimun operatingCashFlowPerShare of 20%
+        flags += 1
+
+    return flags
+
+df_credit["rule_flags"] = df_credit.apply(rule_based_risk, axis=1)
 
 # ==========================
 # Target binário
 # ==========================
 df_credit["high_risk"] = (df_credit["Rating_id"] >= 5).astype(int)
 
-features = score_cols + ["financial_health_score"]
+features = score_cols + ["financial_health_score"] + ["rule_flags"]
 X = df_credit[features]
 y = df_credit["high_risk"]
 
@@ -185,7 +218,7 @@ if st.button("Treinar XGBClassifier"):
             st.text(classification_report(y_test, y_pred))
 
         with col2:
-            st.subheader("🔲 Matriz de Confusão")
+            st.subheader("Matriz de Confusão")
             cm = confusion_matrix(y_test, y_pred)
             fig, ax = plt.subplots(figsize=(5,5))
             sns.heatmap(cm, annot=True, fmt="d", cmap="Reds", ax=ax)
@@ -193,86 +226,38 @@ if st.button("Treinar XGBClassifier"):
             ax.set_ylabel("Real")
             st.pyplot(fig)
 
-        # ==========================
-        # Regras financeiras
-        # ==========================
-        def rule_based_risk(row):
-            flags = 0
-            if row["currentRatio"] < 1:
-                flags += 1
-            if row["debtRatio"] > 0.6:
-                flags += 1
-            if row["returnOnAssets"] < 0:
-                flags += 1
-            if row["operatingCashFlowPerShare"] < 0:
-                flags += 1
-            return flags
-
+      
         st.markdown(r"""
                 ### 1️⃣ Probabilidade de Risco (Machine Learning)
 
-                O modelo **XGBoost** estima a **probabilidade de uma empresa ser de alto risco**, 
-                com base exclusivamente em **indicadores financeiros agregados**.
+                O modelo XGBoost estima a probabilidade de uma empresa ser de alto risco, 
+                com base exclusivamente em indicadores financeiros agregados.
 
                 $P(Risco = Alto) = \text{Modelo}_{ML}(X)$
 
                 Onde:
-                - \(X\) inclui liquidez, rentabilidade, alavancagem, fluxo de caixa e score financeiro final
-                - O resultado é um valor contínuo entre **0 e 1**
+                - \(X\) inclui liquidez, rentabilidade, alavancagem, fluxo de caixa, score financeiro final e flags
+                - O resultado é um valor contínuo entre 0 e 1
 
-                📌 **Interpretação**  
-                - Valores próximos de **1** → alta chance de risco elevado  
-                - Valores próximos de **0** → empresa financeiramente saudável
+                Interpretação
+                - Valores próximos de 1 → alta chance de risco elevado  
+                - Valores próximos de 0 → empresa financeiramente saudável
                 """)
 
         df_credit["ml_risk_probability"] = model.predict_proba(X)[:, 1]
         
-        st.markdown("""
-        ### 2️⃣ Regras Financeiras (Rule-Based Flags)
-
-        Além do modelo estatístico, aplicamos **regras financeiras clássicas** 
-        utilizadas por analistas de crédito para identificar sinais de alerta.
-
-        Cada regra violada adiciona **1 flag de risco**:
-        """)
-
-        st.markdown("""
-        | Regra Financeira | Justificativa |
-        |-----------------|---------------|
-        | `Current Ratio < 1` | Risco de insolvência de curto prazo |
-        | `Debt Ratio > 0.6` | Estrutura de capital excessivamente alavancada |
-        | `ROA < 0` | Operação não gera retorno econômico |
-        | `Operating Cash Flow < 0` | Incapacidade de gerar caixa operacional |
-        """)
         
-        df_credit["rule_flags"] = df_credit.apply(rule_based_risk, axis=1)
-
         st.markdown(r"""
         ### 3️⃣ Score Final de Risco
 
-        O score final combina:
-        - 📊 **Probabilidade estimada pelo modelo**
-        - 📏 **Penalização baseada em regras financeiras**
-
-        $FinalRiskScore = 0.7 \times P_{ML} + 0.3 \times \frac{Flags}{Flags_{max}}$
-
-        📌 **Por que essa combinação?**
-        - O modelo captura **padrões complexos nos dados**
-        - As regras adicionam **robustez econômica e explicabilidade**
-        """)
-
-
-        df_credit["final_risk_score"] = (
-            0.7 * df_credit["ml_risk_probability"] +
-            0.3 * (df_credit["rule_flags"] / df_credit["rule_flags"].max())
-        )
+        O score final é dado pela Probabilidade estimada pelo modelo """)
 
         st.markdown("""
         | Faixa | Intervalo do Score | Interpretação |
         |------|-------------------|---------------|
-        | **Low Risk** | 0.00 – 0.33 | Empresa financeiramente saudável |
-        | **Medium Risk** | 0.33 – 0.66 | Atenção / Monitoramento |
-        | **High Risk** | 0.66 – 1.00 | Alto risco de inadimplência |
+        | Low Risk | 0.00 – 0.33 | Empresa financeiramente saudável |
+        | Medium Risk | 0.33 – 0.66 | Atenção / Monitoramento |
+        | High Risk | 0.66 – 1.00 | Alto risco de inadimplência |
         """)
         
         df_credit["risk_bucket"] = pd.cut(
@@ -286,15 +271,15 @@ if st.button("Treinar XGBClassifier"):
         # ==========================
         st.subheader("📋 Resultado Final de Risco")
 
-        st.markdown(""" 
-        Cada empresa recebe uma classificação clara e acionável, 
-        adequada para **análise de crédito**, **rating interno** ou **suporte à decisão**.
-        """)
-        df_result = df_credit[[
-            "Name", "Rating", "financial_health_score",
-            "ml_risk_probability", "rule_flags",
-            "final_risk_score", "risk_bucket"
-        ]]
+        df_result = pd.DataFrame({
+                        "Name": df_credit["Name"],
+                        "Rating": df_credit["Rating"],
+                        "Financial Health Score": df_credit["financial_health_score"],
+                        "Rule Flags": df_credit["rule_flags"],
+                        "Final Risk Score": df_credit["final_risk_score"],
+                        "Risk Bucket": df_credit["risk_bucket"],
+                        "ML Risk Probability": df_credit["risk_probability"]
+                    })
 
         st.dataframe(df_result)
 

@@ -12,12 +12,12 @@ st.set_page_config(page_title="Predição de Risco de Crédito", layout="wide")
 st.title("📊 Predição de Risco de Crédito Corporativo")
 
 st.markdown("""
-Esta página realiza a **avaliação de risco em dois estágios**:
+Esta página realiza a avaliação de risco em dois estágios:
 
-1. **Modelo de Machine Learning supervisionado**
-2. **Modelo binário + regras financeiras clássicas**
+1. Modelo de Machine Learning supervisionado
+2. Modelo binário treinado com regras financeiras clássicas
 
-O segundo estágio tem como objetivo **reduzir falsos positivos de alto risco**.
+O segundo estágio tem como objetivo reduzir falsos positivos de alto risco.
 """)
 
 # ============================================================
@@ -80,18 +80,19 @@ st.markdown("""
 ## 📐 Estágio 2 — Avaliação Financeira + Regras
 
 ### Scores financeiros utilizados:
-- **Liquidez**
-- **Rentabilidade**
-- **Endividamento**
-- **Fluxo de Caixa**
+- Liquidez
+- Rentabilidade
+- Endividamento
+- Fluxo de Caixa
+- Flags de risco
 
-Os scores são normalizados e combinados em um **Financial Health Score**.
+Os scores são normalizados e combinados em um Financial Health Score.
 """)
 
 df["liquidity_score"] = (
-    0.4 * df["currentRatio"] +
-    0.3 * df["quickRatio"] +
-    0.3 * df["cashRatio"]
+    0.33 * df["currentRatio"] +
+    0.33 * df["quickRatio"] +
+    0.33 * df["cashRatio"]
 )
 
 df["profitability_score"] = (
@@ -102,8 +103,8 @@ df["profitability_score"] = (
 )
 
 df["leverage_score"] = (
-    0.6 * df["debtRatio"] +
-    0.4 * df["debtEquityRatio"]
+    0.5 * df["debtRatio"] +
+    0.5 * df["debtEquityRatio"]
 )
 
 df["cashflow_score"] = (
@@ -122,12 +123,31 @@ scaler = StandardScaler()
 df[score_cols] = scaler.fit_transform(df[score_cols])
 
 df["financial_health_score"] = (
-    0.3 * df["liquidity_score"] +
-    0.3 * df["profitability_score"] -
-    0.2 * df["leverage_score"] +
-    0.2 * df["cashflow_score"]
+    0.5 * df["liquidity_score"] +
+    0.5 * df["profitability_score"] -
+    0.5 * df["leverage_score"] +
+    0.5 * df["cashflow_score"]
 )
 
+def rule_based_risk(row):
+    flags = 0
+
+    if row["liquidity_score"] < 1:
+    # Ideally the liquidity ratios will be greater than 1
+        flags += 1
+    if row["profitability_score"] < 0.2:
+    # We want a profitability ratio greater than 20%
+        flags += 1
+    if row["leverage_score"] > 2:
+    # Don't want a leverage ratio greater than 2
+        flags += 1
+    if row["cashflow_score"] < 0.2:
+    # minimun operatingCashFlowPerShare of 20%
+        flags += 1
+
+    return flags
+
+df["rule_flags"] = df.apply(rule_based_risk, axis=1)
 # ============================================================
 # 5️⃣ Modelo binário + regras financeiras
 # ============================================================
@@ -135,27 +155,11 @@ df["financial_health_score"] = (
 st.markdown("## ⚖️ Redução de Falsos Positivos")
 
 df["risk_probability"] = binary_model.predict_proba(
-    df[score_cols + ["financial_health_score"]]
+    df[score_cols + ["financial_health_score"] + ["rule_flags"]]
 )[:, 1]
 
-def rule_based_risk(row):
-    flags = 0
-    if row["currentRatio"] < 1:
-        flags += 1
-    if row["debtRatio"] > 0.6:
-        flags += 1
-    if row["returnOnAssets"] < 0:
-        flags += 1
-    if row["operatingCashFlowPerShare"] < 0:
-        flags += 1
-    return flags
 
-df["rule_flags"] = df.apply(rule_based_risk, axis=1)
-
-df["final_risk_score"] = (
-    0.7 * df["risk_probability"] +
-    0.3 * (df["rule_flags"] / df["rule_flags"].max())
-)
+df["final_risk_score"] = (df["risk_probability"])
 
 df["risk_bucket"] = pd.cut(
     df["final_risk_score"],
